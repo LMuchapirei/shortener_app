@@ -2,15 +2,15 @@ import imp
 import secrets
 import validators
 from fastapi  import Depends,FastAPI,HTTPException,Request
-from dbcontroller import create_db_url, get_db_url_by_key
+from dbcontroller import create_db_url, get_db_url_by_key, update_db_clicks,deactivate_db_url_by_secret_key
 from schemas import URLBase,URLInfo
 from sqlalchemy.orm import Session
 import models
 from database import SessionLocal,engine
 from fastapi.responses import RedirectResponse
-from dbcontroller import create_db_url
-
-
+from dbcontroller import create_db_url,get_db_url_by_secret_key
+from starlette.datastructures import URL
+from config import get_settings
 app= FastAPI()
 models.Base.metadata.create_all(bind=engine)
 
@@ -34,7 +34,7 @@ def create_url(url:URLBase,db:Session=Depends(get_db)):
     db_url=create_db_url(db=db,url=url)
     db_url.url = db_url.key
     db_url.admin_url = db_url.secret_key
-    return db_url
+    return get_admin_info(db_url)
 
 
 @app.get("/{url_key}")
@@ -49,11 +49,46 @@ def forward_to_target_url(
         .first()
     )
     if db_url:=get_db_url_by_key(db=db,url_key=url_key):
+        update_db_clicks(db=db, db_url=db_url)
         return RedirectResponse(db_url.target_url)
     else:
         raise_not_found(request)
 
-        
+@app.get(
+    "/admin/{secret_key}",
+    name="adminstration info",
+    response_model=URLInfo
+)
+def get_url_info(
+    secret_key: str, request: Request, db: Session = Depends(get_db)
+):
+    if db_url := get_db_url_by_secret_key(db, secret_key=secret_key):
+        return get_admin_info(db_url)
+    else:
+        raise_not_found(request)
+
+@app.delete("/admin/{secret_key}")
+def delete_url(
+    secret_key: str, request: Request, db: Session = Depends(get_db)
+):
+    if db_url := deactivate_db_url_by_secret_key(db, secret_key=secret_key):
+        message = f"Successfully deleted shortened URL for '{db_url.target_url}'"
+        return {"detail": message}
+    else:
+        raise_not_found(request)
+
+
+def get_admin_info(db_url: models.URL) -> URLInfo:
+    base_url = URL(get_settings().base_url)
+    admin_endpoint = app.url_path_for(
+        "administration info", secret_key=db_url.secret_key
+    )
+    db_url.url = str(base_url.replace(path=db_url.key))
+    db_url.admin_url = str(base_url.replace(path=admin_endpoint))
+    return db_url
+
+
+
 def raise_bad_request(message):
     raise HTTPException(status_code=400,detail=message)
 
