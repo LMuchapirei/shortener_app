@@ -2,7 +2,9 @@ import secrets
 import string
 
 from database import SessionLocal
-from dbcontroller import get_db_url_by_key
+import  dbcontroller 
+from sqlalchemy.orm import Session
+
 
 def create_random_key(length:int=5)-> str:
     chars= string.ascii_uppercase + string.digits
@@ -10,6 +12,6 @@ def create_random_key(length:int=5)-> str:
 
 def create_unique_random_key(db:Session)->str:
     key=create_random_key()
-    while get_db_url_by_key(db,key):
+    while dbcontroller.get_db_url_by_key(db,key):
         key=create_random_key()
     return key
