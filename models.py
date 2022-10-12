@@ -2,10 +2,10 @@ import imp
 from sqlalchemy import Boolean,Column,Integer,String
 
 
-from .database import Base
+from database import Base
 
 class URL(Base):
-    __table__name="urls"
+    __tablename__="urls"
     id = Column(Integer, primary_key=True)
     key = Column(String, unique=True, index=True)
     secret_key = Column(String, unique=True, index=True)
